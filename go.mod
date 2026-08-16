@@ -2,7 +2,7 @@ module github.com/zinrai/execbmc
 
 go 1.26.0
 
-require github.com/bougou/go-ipmi v0.8.4-0.20260717101317-f27b2ade152a
+require github.com/bougou/go-ipmi v0.9.0
 
 require (
 	github.com/fatih/color v1.15.0 // indirect
