@@ -30,6 +30,8 @@ var targetToRedfish = map[string]string{
 	targetCDROM: "Cd",
 }
 
+var errUnsupportedResetType = errors.New("unsupported ResetType")
+
 var allowableTargets = []string{"None", "Pxe", "Hdd", "Cd"}
 var allowableResets = []string{"On", "ForceOff", "GracefulShutdown", "ForceRestart", "PowerCycle"}
 
@@ -299,29 +301,32 @@ func (s *redfishServer) handleSystemReset(w http.ResponseWriter, r *http.Request
 	// Not the request context: a client that disconnects would kill the
 	// command halfway through. The command timeout still bounds it.
 	ctx := context.WithoutCancel(r.Context())
-	var err error
-	switch req.ResetType {
-	case "On":
-		err = s.chassis.SetPower(ctx, true)
-	case "ForceOff":
-		err = s.chassis.SetPower(ctx, false)
-	case "GracefulShutdown":
-		err = s.chassis.WarmReset(ctx)
-	case "ForceRestart":
-		err = s.chassis.ColdReset(ctx)
-	case "PowerCycle":
-		err = s.chassis.PowerCycle(ctx)
+	err := req.perform(ctx, s.chassis)
+	switch {
+	case err == nil:
+		w.WriteHeader(http.StatusNoContent)
+	case errors.Is(err, errUnsupportedResetType):
+		s.writeError(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, hal.ErrNotSupported):
+		s.writeError(w, http.StatusBadRequest, fmt.Sprintf("ResetType %q is not supported by this configuration", req.ResetType))
 	default:
-		s.writeError(w, http.StatusBadRequest, fmt.Sprintf("unsupported ResetType %q", req.ResetType))
-		return
-	}
-	if err != nil {
-		if errors.Is(err, hal.ErrNotSupported) {
-			s.writeError(w, http.StatusBadRequest, fmt.Sprintf("ResetType %q is not supported by this configuration", req.ResetType))
-			return
-		}
 		s.writeError(w, http.StatusInternalServerError, err.Error())
-		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+}
+
+func (r resetRequest) perform(ctx context.Context, chassis hal.ChassisHAL) error {
+	switch r.ResetType {
+	case "On":
+		return chassis.SetPower(ctx, true)
+	case "ForceOff":
+		return chassis.SetPower(ctx, false)
+	case "GracefulShutdown":
+		return chassis.WarmReset(ctx)
+	case "ForceRestart":
+		return chassis.ColdReset(ctx)
+	case "PowerCycle":
+		return chassis.PowerCycle(ctx)
+	default:
+		return fmt.Errorf("%w %q", errUnsupportedResetType, r.ResetType)
+	}
 }
