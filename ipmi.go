@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,6 +13,16 @@ import (
 	"github.com/bougou/go-ipmi/pkg/server"
 	"github.com/bougou/go-ipmi/pkg/transport/udp"
 )
+
+// systemGUID derives the BMC's GUID from its name, so it stays the same
+// across restarts.
+func systemGUID(name string) [16]byte {
+	// Not the name copied in: names sharing a prefix would share a GUID.
+	sum := sha256.Sum256([]byte("execbmc:" + name))
+	var guid [16]byte
+	copy(guid[:], sum[:])
+	return guid
+}
 
 // serveIPMI runs the IPMI over LAN server until ctx is cancelled.
 func serveIPMI(ctx context.Context, cfg *Config, h hal.HAL) error {
@@ -24,10 +35,7 @@ func serveIPMI(ctx context.Context, cfg *Config, h hal.HAL) error {
 		ManufacturerID: 0x000000,
 		ProductID:      0x0001,
 	}
-	var guid [16]byte
-	copy(guid[:], "execbmc:"+cfg.Name)
-
-	b := bmc.New(info, guid, h, bmc.WithClock(clock.Real))
+	b := bmc.New(info, systemGUID(cfg.Name), h, bmc.WithClock(clock.Real))
 
 	user, err := b.Users.Add(2, cfg.Username)
 	if err != nil {
