@@ -14,6 +14,12 @@ import (
 	"github.com/bougou/go-ipmi/pkg/transport/udp"
 )
 
+const (
+	// Not slot 1: it is the anonymous user.
+	configuredUserID = 2
+	lanChannel       = 1
+)
+
 func systemGUID(name string) [16]byte {
 	// Not random, so it survives a restart; not the name copied in, as names
 	// sharing a prefix would share a GUID.
@@ -35,13 +41,13 @@ func serveIPMI(ctx context.Context, cfg *Config, h hal.HAL) error {
 	}
 	b := bmc.New(info, systemGUID(cfg.Name), h, bmc.WithClock(clock.Real))
 
-	user, err := b.Users.Add(2, cfg.Username)
+	user, err := b.Users.Add(configuredUserID, cfg.Username)
 	if err != nil {
 		return fmt.Errorf("add user: %w", err)
 	}
 	user.SetPassword([]byte(cfg.Password))
 	user.Enabled = true
-	user.ChannelAccess[1] = bmc.UserChannelAccess{
+	user.ChannelAccess[lanChannel] = bmc.UserChannelAccess{
 		MaxPrivilege: bmc.PrivilegeLevelAdministrator,
 		Enabled:      true,
 	}

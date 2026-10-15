@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -30,7 +31,14 @@ func main() {
 }
 
 func run() error {
-	configPath := flag.String("config", "", "path to the JSON config file (required)")
+	var configPath string
+	flag.Func("config", "path to the JSON config file (required)", func(v string) error {
+		if configPath != "" {
+			return errors.New("-config given more than once")
+		}
+		configPath = v
+		return nil
+	})
 	versionFlag := flag.Bool("version", false, "Print version information and exit")
 	flag.Parse()
 
@@ -39,12 +47,12 @@ func run() error {
 		return nil
 	}
 
-	if *configPath == "" {
+	if configPath == "" {
 		flag.Usage()
 		return fmt.Errorf("-config is required")
 	}
 
-	cfg, err := LoadConfig(*configPath)
+	cfg, err := LoadConfig(configPath)
 	if err != nil {
 		return err
 	}

@@ -18,6 +18,8 @@ const maxLoggedOutput = 4 << 10
 
 const outputDrainDelay = 500 * time.Millisecond
 
+const powerOffPollInterval = 500 * time.Millisecond
+
 func logOutput(b []byte) (string, bool) {
 	s := strings.TrimSpace(string(b))
 	if s == "" {
@@ -166,7 +168,7 @@ func (c *execChassis) waitPowerOff(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("timed out waiting for power off")
-		case <-time.After(500 * time.Millisecond):
+		case <-time.After(powerOffPollInterval):
 		}
 	}
 }
