@@ -94,9 +94,11 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+const defaultCommandTimeout = 30 * time.Second
+
 func (c *Config) CommandTimeout() time.Duration {
 	if c.CommandTimeoutSeconds == 0 {
-		return 30 * time.Second
+		return defaultCommandTimeout
 	}
 	return time.Duration(c.CommandTimeoutSeconds) * time.Second
 }

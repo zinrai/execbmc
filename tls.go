@@ -12,6 +12,13 @@ import (
 	"time"
 )
 
+const (
+	// Not now: a client that verifies the certificate with a clock running
+	// behind would reject it as not yet valid.
+	certBackdate = time.Hour
+	certValidity = 365 * 24 * time.Hour
+)
+
 func selfSignedCertificate(name string) (tls.Certificate, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -26,8 +33,8 @@ func selfSignedCertificate(name string) (tls.Certificate, error) {
 	template := x509.Certificate{
 		SerialNumber: serial,
 		Subject:      pkix.Name{CommonName: "execbmc-" + name},
-		NotBefore:    time.Now().Add(-time.Hour),
-		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
+		NotBefore:    time.Now().Add(-certBackdate),
+		NotAfter:     time.Now().Add(certValidity),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		DNSNames:     []string{"localhost"},
