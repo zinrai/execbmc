@@ -16,13 +16,6 @@ import (
 	"syscall"
 )
 
-// version, commit and date are set by goreleaser via -ldflags -X.
-var (
-	version = "dev"
-	commit  = "none"
-	date    = "unknown"
-)
-
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
