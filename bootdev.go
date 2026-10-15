@@ -12,9 +12,6 @@ import (
 	"github.com/bougou/go-ipmi/pkg/types"
 )
 
-// Boot device targets written to the bootdev file. The consumer (the script
-// that builds the machine's boot arguments) reads the file at machine start
-// and, when persistent is false, resets the file to none after one boot.
 const (
 	targetNone  = "none"
 	targetPXE   = "pxe"
@@ -22,15 +19,11 @@ const (
 	targetCDROM = "cdrom"
 )
 
-// bootdevFile is the JSON document written to bootdev_path.
 type bootdevFile struct {
 	Target     string `json:"target"`
 	Persistent bool   `json:"persistent"`
 }
 
-// bootdevStore holds the current boot flags in memory and mirrors the boot
-// device selection to a file. Consuming the one-shot flag is the reader's
-// responsibility.
 type bootdevStore struct {
 	mu    sync.Mutex
 	path  string
@@ -42,7 +35,6 @@ func newBootdevStore(path string) *bootdevStore {
 	return &bootdevStore{path: path}
 }
 
-// selectorToTarget maps the IPMI boot device selector to a file target.
 func selectorToTarget(sel types.BootDeviceSelector) (string, error) {
 	switch sel {
 	case types.BootDeviceSelectorNoOverride:
@@ -58,7 +50,6 @@ func selectorToTarget(sel types.BootDeviceSelector) (string, error) {
 	}
 }
 
-// targetToSelector is the inverse of selectorToTarget.
 func targetToSelector(target string) (types.BootDeviceSelector, error) {
 	switch target {
 	case targetNone:
@@ -74,7 +65,6 @@ func targetToSelector(target string) (types.BootDeviceSelector, error) {
 	}
 }
 
-// Set validates the flags, stores them, and writes the bootdev file.
 func (s *bootdevStore) Set(flags *types.BootOptionParam_BootFlags) (bootdevFile, error) {
 	target, err := selectorToTarget(flags.BootDeviceSelector)
 	if err != nil {
@@ -94,18 +84,19 @@ func (s *bootdevStore) Set(flags *types.BootOptionParam_BootFlags) (bootdevFile,
 	return f, nil
 }
 
-// Get returns a copy of the stored boot flags. Not from memory alone: the
-// reader resets the file after one boot. A target stored while the override
-// is disabled still comes from memory, as the file holds none for it.
 func (s *bootdevStore) Get() (*types.BootOptionParam_BootFlags, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// Not from memory alone: the file's reader, not execbmc, resets a
+	// one-shot override after the boot.
 	f, err := s.read()
 	if err != nil {
 		return nil, err
 	}
 	flags := s.flags
 	flags.Persist = f.Persistent
+	// Not the selector from the file: it holds none while the override is
+	// disabled, and the target stored in memory stays visible.
 	if f.Target == targetNone {
 		flags.BootFlagsValid = false
 		return &flags, nil
@@ -119,14 +110,12 @@ func (s *bootdevStore) Get() (*types.BootOptionParam_BootFlags, error) {
 	return &flags, nil
 }
 
-// SetAck stores the boot initiator acknowledge data.
 func (s *bootdevStore) SetAck(ack *types.BootOptionParam_BootInfoAcknowledge) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ack = *ack
 }
 
-// GetAck returns a copy of the stored acknowledge data.
 func (s *bootdevStore) GetAck() *types.BootOptionParam_BootInfoAcknowledge {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -149,8 +138,6 @@ func (s *bootdevStore) read() (bootdevFile, error) {
 	return f, nil
 }
 
-// write persists the bootdev file atomically: write to a temp file in the
-// same directory, then rename over the destination.
 func (s *bootdevStore) write(f bootdevFile) error {
 	data, err := json.Marshal(f)
 	if err != nil {
@@ -158,6 +145,7 @@ func (s *bootdevStore) write(f bootdevFile) error {
 	}
 	data = append(data, '\n')
 
+	// Not written in place: the reader could see a partial document.
 	dir := filepath.Dir(s.path)
 	tmp, err := os.CreateTemp(dir, ".bootdev-*")
 	if err != nil {

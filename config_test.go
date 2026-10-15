@@ -5,9 +5,6 @@ import (
 	"testing"
 )
 
-// testConfig returns a minimal valid config and its bootdev path, backed by a
-// temp directory. Commands default to true/true/true so power operations
-// succeed without a real machine.
 func testConfig(t *testing.T) (*Config, string) {
 	t.Helper()
 	dir := t.TempDir()

@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-// Config is the top-level configuration for one BMC instance.
 type Config struct {
 	Name     string `json:"name"`
 	Username string `json:"username"`
@@ -22,12 +21,10 @@ type Config struct {
 	Commands              Commands `json:"commands"`
 }
 
-// IPMIConfig configures the IPMI over LAN listener.
 type IPMIConfig struct {
 	Listen string `json:"listen"`
 }
 
-// RedfishConfig configures the Redfish HTTP listener.
 type RedfishConfig struct {
 	Listen   string `json:"listen"`
 	TLS      *bool  `json:"tls"`
@@ -35,8 +32,6 @@ type RedfishConfig struct {
 	KeyFile  string `json:"key_file"`
 }
 
-// TLSEnabled reports whether the Redfish listener serves TLS.
-// Defaults to true when unset.
 func (r RedfishConfig) TLSEnabled() bool {
 	if r.TLS == nil {
 		return true
@@ -44,14 +39,6 @@ func (r RedfishConfig) TLSEnabled() bool {
 	return *r.TLS
 }
 
-// Commands maps chassis operations to command lines run with /bin/sh -c,
-// so quoting, pipes, and redirection behave exactly as in a shell.
-//
-// power_status contract: exit code 0 means powered on, exit code 1 means
-// powered off, any other exit code is an error. This matches pgrep.
-//
-// power_on must detach the machine (setsid or equivalent) and return
-// promptly: execbmc never becomes the parent of the machine process.
 type Commands struct {
 	PowerStatus string `json:"power_status"`
 	PowerOn     string `json:"power_on"`
@@ -61,7 +48,6 @@ type Commands struct {
 	Reset       string `json:"reset"`
 }
 
-// LoadConfig reads and validates a JSON config file.
 func LoadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -77,7 +63,6 @@ func LoadConfig(path string) (*Config, error) {
 	return &cfg, nil
 }
 
-// Validate checks that every required field is present.
 func (c *Config) Validate() error {
 	if c.Name == "" {
 		return fmt.Errorf("name is required")
@@ -109,7 +94,6 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// CommandTimeout returns the per-command timeout, defaulting to 30 seconds.
 func (c *Config) CommandTimeout() time.Duration {
 	if c.CommandTimeoutSeconds == 0 {
 		return 30 * time.Second

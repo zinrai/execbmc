@@ -14,17 +14,15 @@ import (
 	"github.com/bougou/go-ipmi/pkg/transport/udp"
 )
 
-// systemGUID derives the BMC's GUID from its name, so it stays the same
-// across restarts.
 func systemGUID(name string) [16]byte {
-	// Not the name copied in: names sharing a prefix would share a GUID.
+	// Not random, so it survives a restart; not the name copied in, as names
+	// sharing a prefix would share a GUID.
 	sum := sha256.Sum256([]byte("execbmc:" + name))
 	var guid [16]byte
 	copy(guid[:], sum[:])
 	return guid
 }
 
-// serveIPMI runs the IPMI over LAN server until ctx is cancelled.
 func serveIPMI(ctx context.Context, cfg *Config, h hal.HAL) error {
 	info := bmc.DeviceInfo{
 		DeviceID:       1,

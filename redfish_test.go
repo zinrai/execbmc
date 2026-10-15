@@ -14,7 +14,6 @@ import (
 	"github.com/bougou/go-ipmi/pkg/hal"
 )
 
-// fakeChassis records calls for Redfish handler tests.
 type fakeChassis struct {
 	execChassis
 	on       bool
@@ -63,7 +62,6 @@ func do(t *testing.T, method, url, body string, auth bool) *http.Response {
 	return resp
 }
 
-// fileTarget returns the target and persistence held in the bootdev file.
 func fileTarget(t *testing.T, boot *bootdevStore) (string, bool) {
 	t.Helper()
 	f, err := boot.read()

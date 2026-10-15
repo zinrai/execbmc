@@ -1,11 +1,9 @@
 package main
 
-// odataRef is a link to another resource.
 type odataRef struct {
 	ODataID string `json:"@odata.id"`
 }
 
-// serviceRoot is the response for GET /redfish/v1/.
 type serviceRoot struct {
 	ODataID        string   `json:"@odata.id"`
 	ODataType      string   `json:"@odata.type"`
@@ -15,7 +13,6 @@ type serviceRoot struct {
 	Systems        odataRef `json:"Systems"`
 }
 
-// systemCollection is the response for GET /redfish/v1/Systems.
 type systemCollection struct {
 	ODataID      string     `json:"@odata.id"`
 	ODataType    string     `json:"@odata.type"`
@@ -24,14 +21,12 @@ type systemCollection struct {
 	Members      []odataRef `json:"Members"`
 }
 
-// systemBoot is the Boot object inside a ComputerSystem.
 type systemBoot struct {
 	BootSourceOverrideTarget          string   `json:"BootSourceOverrideTarget"`
 	BootSourceOverrideEnabled         string   `json:"BootSourceOverrideEnabled"`
 	BootSourceOverrideTargetAllowable []string `json:"BootSourceOverrideTarget@Redfish.AllowableValues"`
 }
 
-// systemActions advertises the Reset action.
 type systemActions struct {
 	Reset systemResetAction `json:"#ComputerSystem.Reset"`
 }
@@ -41,7 +36,6 @@ type systemResetAction struct {
 	ResetTypeAllowable []string `json:"ResetType@Redfish.AllowableValues"`
 }
 
-// computerSystem is the response for GET /redfish/v1/Systems/1.
 type computerSystem struct {
 	ODataID    string        `json:"@odata.id"`
 	ODataType  string        `json:"@odata.type"`
@@ -53,7 +47,6 @@ type computerSystem struct {
 	Actions    systemActions `json:"Actions"`
 }
 
-// systemPatch is the accepted body for PATCH /redfish/v1/Systems/1.
 type systemPatch struct {
 	Boot *struct {
 		BootSourceOverrideTarget  *string `json:"BootSourceOverrideTarget"`
@@ -61,12 +54,10 @@ type systemPatch struct {
 	} `json:"Boot"`
 }
 
-// resetRequest is the body for POST .../Actions/ComputerSystem.Reset.
 type resetRequest struct {
 	ResetType string `json:"ResetType"`
 }
 
-// redfishError is a minimal Redfish error response.
 type redfishError struct {
 	Error redfishErrorBody `json:"error"`
 }

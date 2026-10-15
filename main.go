@@ -1,6 +1,5 @@
 // execbmc serves IPMI over LAN and a Redfish subset for one machine, and
-// translates chassis operations into configured commands. It is the BMC for
-// a machine that does not have one: a QEMU guest, a container, a lab box.
+// translates chassis operations into configured commands.
 //
 // One process is one BMC. It runs in the foreground and never becomes the
 // parent of the machine it manages.
@@ -74,7 +73,6 @@ func run() error {
 		}()
 	}
 
-	// The first server error stops the process; on signal, both return nil.
 	for i := 0; i < servers; i++ {
 		if err := <-errCh; err != nil {
 			cancel()

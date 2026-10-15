@@ -12,10 +12,6 @@ import (
 	"time"
 )
 
-// selfSignedCertificate generates an in-memory certificate for the Redfish
-// listener when no certificate files are configured. It is regenerated on
-// every start; clients are expected to skip verification (curl -k,
-// ipmitool-style tooling, provisioning clients with verify disabled).
 func selfSignedCertificate(name string) (tls.Certificate, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {

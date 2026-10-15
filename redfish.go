@@ -16,7 +16,6 @@ import (
 
 const systemID = "1"
 
-// Redfish boot source names mapped to bootdev file targets.
 var redfishToTarget = map[string]string{
 	"None": targetNone,
 	"Pxe":  targetPXE,
@@ -34,14 +33,12 @@ var targetToRedfish = map[string]string{
 var allowableTargets = []string{"None", "Pxe", "Hdd", "Cd"}
 var allowableResets = []string{"On", "ForceOff", "GracefulShutdown", "ForceRestart", "PowerCycle"}
 
-// redfishServer serves the Redfish subset for one system.
 type redfishServer struct {
 	cfg     *Config
 	chassis hal.ChassisHAL
 	boot    *bootdevStore
 }
 
-// serveRedfish runs the Redfish HTTP server until ctx is cancelled.
 func serveRedfish(ctx context.Context, cfg *Config, chassis hal.ChassisHAL, boot *bootdevStore) error {
 	rf := &redfishServer{cfg: cfg, chassis: chassis, boot: boot}
 
@@ -77,11 +74,9 @@ func serveRedfish(ctx context.Context, cfg *Config, chassis hal.ChassisHAL, boot
 	return nil
 }
 
-// handler builds the route table. The service root is served without
-// authentication as required by the Redfish specification; everything else
-// requires HTTP Basic authentication.
 func (s *redfishServer) handler() http.Handler {
 	mux := http.NewServeMux()
+	// Not behind auth: the Redfish specification requires an open service root.
 	mux.HandleFunc("GET /redfish/v1", s.handleServiceRoot)
 	mux.HandleFunc("GET /redfish/v1/{$}", s.handleServiceRoot)
 	mux.HandleFunc("GET /redfish/v1/Systems", s.auth(s.handleSystems))
@@ -91,7 +86,6 @@ func (s *redfishServer) handler() http.Handler {
 	return logRequests(mux)
 }
 
-// statusRecorder captures the response status for request logging.
 type statusRecorder struct {
 	http.ResponseWriter
 	status int
@@ -102,7 +96,6 @@ func (r *statusRecorder) WriteHeader(status int) {
 	r.ResponseWriter.WriteHeader(status)
 }
 
-// logRequests logs every Redfish request as one line.
 func logRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
@@ -116,7 +109,6 @@ func logRequests(next http.Handler) http.Handler {
 	})
 }
 
-// auth wraps a handler with HTTP Basic authentication.
 func (s *redfishServer) auth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, pass, ok := r.BasicAuth()
@@ -167,9 +159,6 @@ func (s *redfishServer) handleSystems(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// currentBoot reads the shared boot state as a Redfish Boot object. The
-// target and the enable state are reported independently: a stored target
-// remains visible while the override is disabled.
 func (s *redfishServer) currentBoot() (systemBoot, error) {
 	flags, err := s.boot.Get()
 	if err != nil {
@@ -245,10 +234,9 @@ func (s *redfishServer) handleSystemPatch(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// PATCH is a partial update: properties absent from the request keep
-	// their current value, matching the Redfish specification. Setting a
-	// target while the override is disabled stores the target without
-	// enabling it, exactly like a spec-conforming BMC.
+	// Not a replacement: properties absent from the request keep their value,
+	// and a target set while the override is disabled is stored without
+	// enabling it, as the Redfish specification requires.
 	current, err := s.boot.Get()
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err.Error())

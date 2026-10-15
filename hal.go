@@ -14,15 +14,10 @@ import (
 	"github.com/bougou/go-ipmi/pkg/types"
 )
 
-// maxLoggedOutput caps how much of a command's stdout or stderr is copied
-// into a log line, so a runaway command cannot flood the log.
-const maxLoggedOutput = 4 << 10 // 4 KiB
+const maxLoggedOutput = 4 << 10
 
 const outputDrainDelay = 500 * time.Millisecond
 
-// logOutput trims a captured stream for logging and reports whether anything
-// is left. Empty or whitespace-only output is dropped so a quiet command
-// (the common case for a status poll) does not add attributes.
 func logOutput(b []byte) (string, bool) {
 	s := strings.TrimSpace(string(b))
 	if s == "" {
@@ -34,8 +29,6 @@ func logOutput(b []byte) (string, bool) {
 	return s, true
 }
 
-// execHAL is a hal.HAL whose only subsystem is a chassis backed by
-// configured commands. Every other subsystem is absent.
 type execHAL struct {
 	chassis *execChassis
 }
@@ -59,15 +52,12 @@ func (h *execHAL) I2C() hal.I2CHAL         { return nil }
 func (h *execHAL) Console() hal.ConsoleHAL { return nil }
 func (h *execHAL) Close() error            { return nil }
 
-// execChassis implements hal.ChassisHAL by running configured commands.
 type execChassis struct {
 	commands Commands
 	timeout  time.Duration
 	boot     *bootdevStore
 }
 
-// run executes command with /bin/sh -c under the configured timeout,
-// logs the execution, and returns its exit code.
 func (c *execChassis) run(ctx context.Context, op string, command string) (int, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
@@ -96,9 +86,6 @@ func (c *execChassis) run(ctx context.Context, op string, command string) (int, 
 		}
 	}
 
-	// The exit code carries the result; stdout and stderr are logged purely
-	// for observability, so they are included only when the command wrote to
-	// them.
 	attrs := []any{
 		"op", op,
 		"cmd", command,
@@ -119,7 +106,6 @@ func (c *execChassis) run(ctx context.Context, op string, command string) (int, 
 	return code, nil
 }
 
-// runOK executes command and requires exit code 0.
 func (c *execChassis) runOK(ctx context.Context, op string, command string) error {
 	code, err := c.run(ctx, op, command)
 	if err != nil {
@@ -131,7 +117,6 @@ func (c *execChassis) runOK(ctx context.Context, op string, command string) erro
 	return nil
 }
 
-// PowerState runs power_status: exit 0 means on, exit 1 means off.
 func (c *execChassis) PowerState(ctx context.Context) (bool, error) {
 	code, err := c.run(ctx, "power_status", c.commands.PowerStatus)
 	if err != nil {
@@ -147,7 +132,6 @@ func (c *execChassis) PowerState(ctx context.Context) (bool, error) {
 	}
 }
 
-// SetPower runs power_on or power_off.
 func (c *execChassis) SetPower(ctx context.Context, on bool) error {
 	if on {
 		return c.runOK(ctx, "power_on", c.commands.PowerOn)
@@ -155,8 +139,6 @@ func (c *execChassis) SetPower(ctx context.Context, on bool) error {
 	return c.runOK(ctx, "power_off", c.commands.PowerOff)
 }
 
-// PowerCycle runs power_cycle when configured, otherwise powers off, waits
-// for power_status to report off, and powers on.
 func (c *execChassis) PowerCycle(ctx context.Context) error {
 	if c.commands.PowerCycle != "" {
 		return c.runOK(ctx, "power_cycle", c.commands.PowerCycle)
@@ -170,7 +152,6 @@ func (c *execChassis) PowerCycle(ctx context.Context) error {
 	return c.runOK(ctx, "power_on", c.commands.PowerOn)
 }
 
-// waitPowerOff polls power_status until it reports off.
 func (c *execChassis) waitPowerOff(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
@@ -190,7 +171,6 @@ func (c *execChassis) waitPowerOff(ctx context.Context) error {
 	}
 }
 
-// ColdReset runs reset when configured, otherwise performs a power cycle.
 func (c *execChassis) ColdReset(ctx context.Context) error {
 	if c.commands.Reset != "" {
 		return c.runOK(ctx, "reset", c.commands.Reset)
@@ -198,8 +178,8 @@ func (c *execChassis) ColdReset(ctx context.Context) error {
 	return c.PowerCycle(ctx)
 }
 
-// WarmReset runs power_soft. The chassis handler maps IPMI soft shutdown
-// (Chassis Control 0x05) to WarmReset.
+// Not a warm reboot: go-ipmi maps IPMI soft shutdown (Chassis Control 0x05)
+// to WarmReset, so it runs power_soft.
 func (c *execChassis) WarmReset(ctx context.Context) error {
 	if c.commands.PowerSoft == "" {
 		return hal.ErrNotSupported
@@ -207,18 +187,15 @@ func (c *execChassis) WarmReset(ctx context.Context) error {
 	return c.runOK(ctx, "power_soft", c.commands.PowerSoft)
 }
 
-// Identify logs the request. There is no identification LED to pulse.
 func (c *execChassis) Identify(ctx context.Context, seconds uint8) error {
 	slog.Info("identify", "seconds", seconds)
 	return nil
 }
 
-// IntrusionState is not supported.
 func (c *execChassis) IntrusionState(ctx context.Context) (bool, error) {
 	return false, hal.ErrNotSupported
 }
 
-// SetBootFlags stores the flags and writes the bootdev file.
 func (c *execChassis) SetBootFlags(ctx context.Context, flags *types.BootOptionParam_BootFlags) error {
 	f, err := c.boot.Set(flags)
 	if err != nil {
@@ -228,18 +205,15 @@ func (c *execChassis) SetBootFlags(ctx context.Context, flags *types.BootOptionP
 	return nil
 }
 
-// GetBootFlags returns the stored flags.
 func (c *execChassis) GetBootFlags(ctx context.Context) (*types.BootOptionParam_BootFlags, error) {
 	return c.boot.Get()
 }
 
-// SetBootInfoAcknowledge stores the acknowledge data.
 func (c *execChassis) SetBootInfoAcknowledge(ctx context.Context, ack *types.BootOptionParam_BootInfoAcknowledge) error {
 	c.boot.SetAck(ack)
 	return nil
 }
 
-// GetBootInfoAcknowledge returns the stored acknowledge data.
 func (c *execChassis) GetBootInfoAcknowledge(ctx context.Context) (*types.BootOptionParam_BootInfoAcknowledge, error) {
 	return c.boot.GetAck(), nil
 }
