@@ -172,9 +172,9 @@ Existing virtual BMCs hard-wire their backend:
 [virtualbmc](https://github.com/openstack/virtualbmc) requires libvirt,
 [sushy-tools](https://github.com/openstack/sushy-tools) requires libvirt or
 OpenStack, [kubevirtbmc](https://github.com/starbops/kubevirtbmc) requires
-Kubernetes. Choosing the tool means choosing the virtualization stack. But the BMC
-protocol frontend and the machine management backend are separate concerns,
-and the narrowest interface between them is a command line.
+Kubernetes. Choosing the tool means choosing the virtualization stack. But
+the BMC protocol frontend and the machine management backend are separate
+concerns, and the narrowest interface between them is a command line.
 
 Three projects reached for that interface independently:
 [shipmi](https://github.com/lion7/shipmi) replaces virtualbmc's libvirt
@@ -182,12 +182,12 @@ driver with shell script providers,
 [ipmi_sim](https://github.com/cminyard/openipmi) runs a configured
 chassis_control program, and
 [fakefish](https://github.com/openshift-metal3/fakefish) maps Redfish
-operations to custom scripts. Each covers part of the picture: shipmi is a Python stack
-serving IPMI only, fakefish serves Redfish only, and ipmi_sim owns the
-machine process it controls. They also differ on how a command reports
-power state: shipmi parses a status string from stdout, ipmi_sim reads a
-parameter and value from stdout, and fakefish keeps no status command of
-its own because it fronts a real BMC.
+operations to custom scripts. Each covers part of the picture: shipmi is a
+Python stack serving IPMI only, fakefish serves Redfish only, and ipmi_sim
+owns the machine process it controls. They also differ on how a command
+reports power state: shipmi parses a status string from stdout, ipmi_sim
+reads a parameter and value from stdout, and fakefish keeps no status
+command of its own because it fronts a real BMC.
 
 execbmc is the remaining intersection: a single static binary serving both
 IPMI (RMCP+ and v1.5) and Redfish, with commands as the only backend
