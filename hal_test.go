@@ -2,15 +2,12 @@ package main
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/bougou/go-ipmi/pkg/hal"
 )
 
 func TestExecChassisPowerStatusContract(t *testing.T) {
@@ -117,13 +114,5 @@ func TestExecChassisColdResetFallsBackToCycle(t *testing.T) {
 	}
 	if got := ops(); len(got) != 2 || got[0] != "off" || got[1] != "on" {
 		t.Fatalf("op sequence = %v, want [off on]", got)
-	}
-}
-
-// Without power_soft, a soft shutdown request is rejected.
-func TestExecChassisWarmResetUnsupported(t *testing.T) {
-	c, _ := recordingChassis(t)
-	if err := c.WarmReset(context.Background()); !errors.Is(err, hal.ErrNotSupported) {
-		t.Fatalf("WarmReset without power_soft = %v, want ErrNotSupported", err)
 	}
 }

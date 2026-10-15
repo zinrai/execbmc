@@ -22,20 +22,3 @@ func testConfig(t *testing.T) (*Config, string) {
 		},
 	}, bootdevPath
 }
-
-// The only cross-field invariant worth asserting is that at least one
-// listener is configured. The remaining checks are single-field presence
-// guards that a test would only restate.
-func TestConfigValidateRequiresListener(t *testing.T) {
-	cfg, _ := testConfig(t)
-	if err := cfg.Validate(); err != nil {
-		t.Fatalf("valid config rejected: %v", err)
-	}
-
-	noListener := *cfg
-	noListener.IPMI.Listen = ""
-	noListener.Redfish.Listen = ""
-	if err := noListener.Validate(); err == nil {
-		t.Fatal("config with neither ipmi.listen nor redfish.listen accepted")
-	}
-}

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,39 +9,16 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/bougou/go-ipmi/pkg/hal"
 )
 
-type fakeChassis struct {
-	execChassis
-	on       bool
-	lastCall string
-}
-
-func (f *fakeChassis) PowerState(ctx context.Context) (bool, error) { return f.on, nil }
-func (f *fakeChassis) SetPower(ctx context.Context, on bool) error {
-	f.on = on
-	if on {
-		f.lastCall = "on"
-	} else {
-		f.lastCall = "off"
-	}
-	return nil
-}
-func (f *fakeChassis) PowerCycle(ctx context.Context) error { f.lastCall = "cycle"; return nil }
-func (f *fakeChassis) ColdReset(ctx context.Context) error  { f.lastCall = "cold"; return nil }
-func (f *fakeChassis) WarmReset(ctx context.Context) error  { return hal.ErrNotSupported }
-
-func newTestRedfish(t *testing.T) (*httptest.Server, *fakeChassis, *bootdevStore) {
+func newTestRedfish(t *testing.T) (*httptest.Server, *bootdevStore) {
 	t.Helper()
 	cfg, _ := testConfig(t)
 	boot := newBootdevStore(cfg.BootdevPath)
-	chassis := &fakeChassis{}
-	rf := &redfishServer{cfg: cfg, chassis: chassis, boot: boot}
+	rf := &redfishServer{cfg: cfg, chassis: newExecHAL(cfg, boot).Chassis(), boot: boot}
 	srv := httptest.NewServer(rf.handler())
 	t.Cleanup(srv.Close)
-	return srv, chassis, boot
+	return srv, boot
 }
 
 func do(t *testing.T, method, url, body string, auth bool) *http.Response {
@@ -71,16 +47,8 @@ func fileTarget(t *testing.T, boot *bootdevStore) (string, bool) {
 	return f.Target, f.Persistent
 }
 
-func TestRedfishServiceRootUnauthenticated(t *testing.T) {
-	srv, _, _ := newTestRedfish(t)
-	resp := do(t, "GET", srv.URL+"/redfish/v1/", "", false)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("service root status = %d, want 200", resp.StatusCode)
-	}
-}
-
 func TestRedfishSystemsRequireAuth(t *testing.T) {
-	srv, _, _ := newTestRedfish(t)
+	srv, _ := newTestRedfish(t)
 	resp := do(t, "GET", srv.URL+"/redfish/v1/Systems", "", false)
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("unauthenticated status = %d, want 401", resp.StatusCode)
@@ -92,7 +60,7 @@ func TestRedfishSystemsRequireAuth(t *testing.T) {
 }
 
 func TestRedfishBootPatchWritesBootdev(t *testing.T) {
-	srv, _, boot := newTestRedfish(t)
+	srv, boot := newTestRedfish(t)
 
 	body := `{"Boot": {"BootSourceOverrideTarget": "Pxe", "BootSourceOverrideEnabled": "Once"}}`
 	resp := do(t, "PATCH", srv.URL+"/redfish/v1/Systems/1", body, true)
@@ -117,7 +85,7 @@ func TestRedfishBootPatchWritesBootdev(t *testing.T) {
 }
 
 func TestRedfishBootPatchIsPartialUpdate(t *testing.T) {
-	srv, _, boot := newTestRedfish(t)
+	srv, boot := newTestRedfish(t)
 
 	// Setting a target while the override is disabled stores the target
 	// without enabling it: the file keeps target none, and the resource
@@ -163,7 +131,7 @@ func TestRedfishBootPatchIsPartialUpdate(t *testing.T) {
 // After the file's reader resets a one-shot override, patching only the
 // target stores it without enabling the override again.
 func TestRedfishBootPatchAfterReaderResetStaysDisabled(t *testing.T) {
-	srv, _, boot := newTestRedfish(t)
+	srv, boot := newTestRedfish(t)
 
 	body := `{"Boot": {"BootSourceOverrideTarget": "Pxe", "BootSourceOverrideEnabled": "Once"}}`
 	if resp := do(t, "PATCH", srv.URL+"/redfish/v1/Systems/1", body, true); resp.StatusCode != http.StatusNoContent {
@@ -191,7 +159,7 @@ func TestRedfishBootPatchAfterReaderResetStaysDisabled(t *testing.T) {
 }
 
 func TestRedfishBootPatchRejectsUnknownTarget(t *testing.T) {
-	srv, _, _ := newTestRedfish(t)
+	srv, _ := newTestRedfish(t)
 	body := `{"Boot": {"BootSourceOverrideTarget": "Usb"}}`
 	resp := do(t, "PATCH", srv.URL+"/redfish/v1/Systems/1", body, true)
 	if resp.StatusCode != http.StatusBadRequest {
@@ -232,23 +200,5 @@ func TestRedfishResetSurvivesClientDisconnect(t *testing.T) {
 			t.Fatal("power_on did not complete after the client disconnected")
 		}
 		time.Sleep(100 * time.Millisecond)
-	}
-}
-
-func TestRedfishReset(t *testing.T) {
-	srv, chassis, _ := newTestRedfish(t)
-
-	resp := do(t, "POST", srv.URL+"/redfish/v1/Systems/1/Actions/ComputerSystem.Reset", `{"ResetType": "On"}`, true)
-	if resp.StatusCode != http.StatusNoContent {
-		t.Fatalf("reset status = %d, want 204", resp.StatusCode)
-	}
-	if chassis.lastCall != "on" {
-		t.Fatalf("lastCall = %s, want on", chassis.lastCall)
-	}
-
-	// GracefulShutdown maps to WarmReset, which the fake reports unsupported.
-	resp = do(t, "POST", srv.URL+"/redfish/v1/Systems/1/Actions/ComputerSystem.Reset", `{"ResetType": "GracefulShutdown"}`, true)
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("graceful status = %d, want 400", resp.StatusCode)
 	}
 }

@@ -8,7 +8,7 @@ import (
 	"github.com/bougou/go-ipmi/pkg/types"
 )
 
-func TestBootdevFileRoundTrip(t *testing.T) {
+func TestBootdevSetWritesFileAndGetReadsItBack(t *testing.T) {
 	cfg, bootdevPath := testConfig(t)
 	store := newBootdevStore(cfg.BootdevPath)
 
