@@ -303,18 +303,21 @@ func (s *redfishServer) handleSystemReset(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Not the request context: a client that disconnects would kill the
+	// command halfway through. The command timeout still bounds it.
+	ctx := context.WithoutCancel(r.Context())
 	var err error
 	switch req.ResetType {
 	case "On":
-		err = s.chassis.SetPower(r.Context(), true)
+		err = s.chassis.SetPower(ctx, true)
 	case "ForceOff":
-		err = s.chassis.SetPower(r.Context(), false)
+		err = s.chassis.SetPower(ctx, false)
 	case "GracefulShutdown":
-		err = s.chassis.WarmReset(r.Context())
+		err = s.chassis.WarmReset(ctx)
 	case "ForceRestart":
-		err = s.chassis.ColdReset(r.Context())
+		err = s.chassis.ColdReset(ctx)
 	case "PowerCycle":
-		err = s.chassis.PowerCycle(r.Context())
+		err = s.chassis.PowerCycle(ctx)
 	default:
 		s.writeError(w, http.StatusBadRequest, fmt.Sprintf("unsupported ResetType %q", req.ResetType))
 		return

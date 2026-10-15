@@ -6,8 +6,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bougou/go-ipmi/pkg/hal"
 )
@@ -196,6 +198,42 @@ func TestRedfishBootPatchRejectsUnknownTarget(t *testing.T) {
 	resp := do(t, "PATCH", srv.URL+"/redfish/v1/Systems/1", body, true)
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("patch status = %d, want 400", resp.StatusCode)
+	}
+}
+
+// A reset runs to completion after the client disconnects.
+func TestRedfishResetSurvivesClientDisconnect(t *testing.T) {
+	cfg, _ := testConfig(t)
+	done := filepath.Join(t.TempDir(), "done")
+	chassis := &execChassis{
+		commands: Commands{PowerOn: "sleep 1; touch " + done},
+		timeout:  cfg.CommandTimeout(),
+		boot:     newBootdevStore(cfg.BootdevPath),
+	}
+	rf := &redfishServer{cfg: cfg, chassis: chassis, boot: chassis.boot}
+	srv := httptest.NewServer(rf.handler())
+	t.Cleanup(srv.Close)
+
+	req, err := http.NewRequest("POST", srv.URL+"/redfish/v1/Systems/1/Actions/ComputerSystem.Reset", strings.NewReader(`{"ResetType": "On"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.SetBasicAuth("admin", "secret")
+	client := &http.Client{Timeout: 200 * time.Millisecond}
+	if resp, err := client.Do(req); err == nil {
+		resp.Body.Close()
+		t.Fatal("request completed before the client timeout")
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, err := os.Stat(done); err == nil {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("power_on did not complete after the client disconnected")
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
