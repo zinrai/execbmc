@@ -165,10 +165,11 @@ Setting a boot device writes a JSON document to `bootdev_path`:
 {"target": "pxe", "persistent": false}
 ```
 
-`target` is one of `none`, `pxe`, `disk`, or `cdrom`. execbmc only writes
-this file. The script that starts the machine reads it, translates the
-target into boot arguments, and, when `persistent` is false, resets the file
-to `{"target": "none", "persistent": false}` after one boot.
+`target` is one of `none`, `pxe`, `disk`, or `cdrom`. The script that starts
+the machine reads it, translates the target into boot arguments, and, when
+`persistent` is false, resets the file to `{"target": "none", "persistent":
+false}` after one boot. execbmc reads the file back when reporting the boot
+device, so the reset disables the override, and a missing file means none.
 
 ### Logging
 

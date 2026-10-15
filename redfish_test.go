@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -60,6 +61,16 @@ func do(t *testing.T, method, url, body string, auth bool) *http.Response {
 	return resp
 }
 
+// fileTarget returns the target and persistence held in the bootdev file.
+func fileTarget(t *testing.T, boot *bootdevStore) (string, bool) {
+	t.Helper()
+	f, err := boot.read()
+	if err != nil {
+		t.Fatalf("read bootdev file: %v", err)
+	}
+	return f.Target, f.Persistent
+}
+
 func TestRedfishServiceRootUnauthenticated(t *testing.T) {
 	srv, _, _ := newTestRedfish(t)
 	resp := do(t, "GET", srv.URL+"/redfish/v1/", "", false)
@@ -89,7 +100,7 @@ func TestRedfishBootPatchWritesBootdev(t *testing.T) {
 		t.Fatalf("patch status = %d, want 204", resp.StatusCode)
 	}
 
-	target, persistent := boot.Target()
+	target, persistent := fileTarget(t, boot)
 	if target != "pxe" || persistent {
 		t.Fatalf("boot state = %s persistent=%t, want pxe persistent=false", target, persistent)
 	}
@@ -116,7 +127,7 @@ func TestRedfishBootPatchIsPartialUpdate(t *testing.T) {
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("patch status = %d, want 204", resp.StatusCode)
 	}
-	if target, _ := boot.Target(); target != "none" {
+	if target, _ := fileTarget(t, boot); target != "none" {
 		t.Fatalf("file target = %s, want none while disabled", target)
 	}
 	resp = do(t, "GET", srv.URL+"/redfish/v1/Systems/1", "", true)
@@ -135,7 +146,7 @@ func TestRedfishBootPatchIsPartialUpdate(t *testing.T) {
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("enable status = %d, want 204", resp.StatusCode)
 	}
-	if target, persistent := boot.Target(); target != "pxe" || persistent {
+	if target, persistent := fileTarget(t, boot); target != "pxe" || persistent {
 		t.Fatalf("boot state = %s persistent=%t, want pxe persistent=false", target, persistent)
 	}
 
@@ -144,8 +155,38 @@ func TestRedfishBootPatchIsPartialUpdate(t *testing.T) {
 	if resp = do(t, "PATCH", srv.URL+"/redfish/v1/Systems/1", body, true); resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("disable status = %d, want 204", resp.StatusCode)
 	}
-	if target, _ := boot.Target(); target != "none" {
+	if target, _ := fileTarget(t, boot); target != "none" {
 		t.Fatalf("file target after disable = %s, want none", target)
+	}
+}
+
+// After the file's reader resets a one-shot override, patching only the
+// target stores it without enabling the override again.
+func TestRedfishBootPatchAfterReaderResetStaysDisabled(t *testing.T) {
+	srv, _, boot := newTestRedfish(t)
+
+	body := `{"Boot": {"BootSourceOverrideTarget": "Pxe", "BootSourceOverrideEnabled": "Once"}}`
+	if resp := do(t, "PATCH", srv.URL+"/redfish/v1/Systems/1", body, true); resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("patch status = %d, want 204", resp.StatusCode)
+	}
+	if err := os.WriteFile(boot.path, []byte(`{"target": "none", "persistent": false}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	body = `{"Boot": {"BootSourceOverrideTarget": "Hdd"}}`
+	if resp := do(t, "PATCH", srv.URL+"/redfish/v1/Systems/1", body, true); resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("patch status = %d, want 204", resp.StatusCode)
+	}
+	if target, _ := fileTarget(t, boot); target != "none" {
+		t.Fatalf("file target = %s, want none", target)
+	}
+	resp := do(t, "GET", srv.URL+"/redfish/v1/Systems/1", "", true)
+	var sys computerSystem
+	if err := json.NewDecoder(resp.Body).Decode(&sys); err != nil {
+		t.Fatal(err)
+	}
+	if sys.Boot.BootSourceOverrideTarget != "Hdd" || sys.Boot.BootSourceOverrideEnabled != "Disabled" {
+		t.Fatalf("Boot = %+v, want Hdd Disabled", sys.Boot)
 	}
 }
 

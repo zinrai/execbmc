@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
@@ -27,8 +29,8 @@ type bootdevFile struct {
 }
 
 // bootdevStore holds the current boot flags in memory and mirrors the boot
-// device selection to a file. execbmc only writes the file; consuming the
-// one-shot flag is the reader's responsibility.
+// device selection to a file. Consuming the one-shot flag is the reader's
+// responsibility.
 type bootdevStore struct {
 	mu    sync.Mutex
 	path  string
@@ -73,44 +75,48 @@ func targetToSelector(target string) (types.BootDeviceSelector, error) {
 }
 
 // Set validates the flags, stores them, and writes the bootdev file.
-func (s *bootdevStore) Set(flags *types.BootOptionParam_BootFlags) error {
+func (s *bootdevStore) Set(flags *types.BootOptionParam_BootFlags) (bootdevFile, error) {
 	target, err := selectorToTarget(flags.BootDeviceSelector)
 	if err != nil {
-		return err
+		return bootdevFile{}, err
 	}
 	if !flags.BootFlagsValid {
 		target = targetNone
 	}
+	f := bootdevFile{Target: target, Persistent: flags.Persist}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.write(bootdevFile{Target: target, Persistent: flags.Persist}); err != nil {
-		return err
+	if err := s.write(f); err != nil {
+		return bootdevFile{}, err
 	}
 	s.flags = *flags
-	return nil
+	return f, nil
 }
 
-// Get returns a copy of the stored boot flags.
-func (s *bootdevStore) Get() *types.BootOptionParam_BootFlags {
+// Get returns a copy of the stored boot flags. Not from memory alone: the
+// reader resets the file after one boot. A target stored while the override
+// is disabled still comes from memory, as the file holds none for it.
+func (s *bootdevStore) Get() (*types.BootOptionParam_BootFlags, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	flags := s.flags
-	return &flags
-}
-
-// Target returns the stored boot selection as a file target.
-func (s *bootdevStore) Target() (string, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if !s.flags.BootFlagsValid {
-		return targetNone, false
-	}
-	target, err := selectorToTarget(s.flags.BootDeviceSelector)
+	f, err := s.read()
 	if err != nil {
-		return targetNone, false
+		return nil, err
 	}
-	return target, s.flags.Persist
+	flags := s.flags
+	flags.Persist = f.Persistent
+	if f.Target == targetNone {
+		flags.BootFlagsValid = false
+		return &flags, nil
+	}
+	sel, err := targetToSelector(f.Target)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", s.path, err)
+	}
+	flags.BootFlagsValid = true
+	flags.BootDeviceSelector = sel
+	return &flags, nil
 }
 
 // SetAck stores the boot initiator acknowledge data.
@@ -126,6 +132,21 @@ func (s *bootdevStore) GetAck() *types.BootOptionParam_BootInfoAcknowledge {
 	defer s.mu.Unlock()
 	ack := s.ack
 	return &ack
+}
+
+func (s *bootdevStore) read() (bootdevFile, error) {
+	data, err := os.ReadFile(s.path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return bootdevFile{Target: targetNone}, nil
+	}
+	if err != nil {
+		return bootdevFile{}, err
+	}
+	var f bootdevFile
+	if err := json.Unmarshal(data, &f); err != nil {
+		return bootdevFile{}, fmt.Errorf("parse %s: %w", s.path, err)
+	}
+	return f, nil
 }
 
 // write persists the bootdev file atomically: write to a temp file in the

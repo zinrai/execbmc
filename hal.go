@@ -220,17 +220,17 @@ func (c *execChassis) IntrusionState(ctx context.Context) (bool, error) {
 
 // SetBootFlags stores the flags and writes the bootdev file.
 func (c *execChassis) SetBootFlags(ctx context.Context, flags *types.BootOptionParam_BootFlags) error {
-	if err := c.boot.Set(flags); err != nil {
+	f, err := c.boot.Set(flags)
+	if err != nil {
 		return err
 	}
-	target, persistent := c.boot.Target()
-	slog.Info("boot_flags", "source", "ipmi", "target", target, "persistent", persistent)
+	slog.Info("boot_flags", "source", "ipmi", "target", f.Target, "persistent", f.Persistent)
 	return nil
 }
 
 // GetBootFlags returns the stored flags.
 func (c *execChassis) GetBootFlags(ctx context.Context) (*types.BootOptionParam_BootFlags, error) {
-	return c.boot.Get(), nil
+	return c.boot.Get()
 }
 
 // SetBootInfoAcknowledge stores the acknowledge data.

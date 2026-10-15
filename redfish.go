@@ -170,8 +170,11 @@ func (s *redfishServer) handleSystems(w http.ResponseWriter, r *http.Request) {
 // currentBoot reads the shared boot state as a Redfish Boot object. The
 // target and the enable state are reported independently: a stored target
 // remains visible while the override is disabled.
-func (s *redfishServer) currentBoot() systemBoot {
-	flags := s.boot.Get()
+func (s *redfishServer) currentBoot() (systemBoot, error) {
+	flags, err := s.boot.Get()
+	if err != nil {
+		return systemBoot{}, err
+	}
 	target, err := selectorToTarget(flags.BootDeviceSelector)
 	if err != nil {
 		target = targetNone
@@ -188,7 +191,7 @@ func (s *redfishServer) currentBoot() systemBoot {
 	default:
 		boot.BootSourceOverrideEnabled = "Once"
 	}
-	return boot
+	return boot, nil
 }
 
 func (s *redfishServer) handleSystemGet(w http.ResponseWriter, r *http.Request) {
@@ -205,6 +208,11 @@ func (s *redfishServer) handleSystemGet(w http.ResponseWriter, r *http.Request) 
 	if on {
 		powerState = "On"
 	}
+	boot, err := s.currentBoot()
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.writeJSON(w, http.StatusOK, computerSystem{
 		ODataID:    "/redfish/v1/Systems/" + systemID,
 		ODataType:  "#ComputerSystem.v1_13_0.ComputerSystem",
@@ -212,7 +220,7 @@ func (s *redfishServer) handleSystemGet(w http.ResponseWriter, r *http.Request) 
 		Name:       s.cfg.Name,
 		SystemType: "Physical",
 		PowerState: powerState,
-		Boot:       s.currentBoot(),
+		Boot:       boot,
 		Actions: systemActions{
 			Reset: systemResetAction{
 				Target:             "/redfish/v1/Systems/" + systemID + "/Actions/ComputerSystem.Reset",
@@ -241,7 +249,12 @@ func (s *redfishServer) handleSystemPatch(w http.ResponseWriter, r *http.Request
 	// their current value, matching the Redfish specification. Setting a
 	// target while the override is disabled stores the target without
 	// enabling it, exactly like a spec-conforming BMC.
-	flags := *s.boot.Get()
+	current, err := s.boot.Get()
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	flags := *current
 	if patch.Boot.BootSourceOverrideTarget != nil {
 		t, ok := redfishToTarget[*patch.Boot.BootSourceOverrideTarget]
 		if !ok {
@@ -270,12 +283,12 @@ func (s *redfishServer) handleSystemPatch(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := s.boot.Set(&flags); err != nil {
+	f, err := s.boot.Set(&flags)
+	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	target, persistent := s.boot.Target()
-	slog.Info("boot_flags", "source", "redfish", "target", target, "persistent", persistent)
+	slog.Info("boot_flags", "source", "redfish", "target", f.Target, "persistent", f.Persistent)
 	w.WriteHeader(http.StatusNoContent)
 }
 
