@@ -18,6 +18,8 @@ import (
 // into a log line, so a runaway command cannot flood the log.
 const maxLoggedOutput = 4 << 10 // 4 KiB
 
+const outputDrainDelay = 500 * time.Millisecond
+
 // logOutput trims a captured stream for logging and reports whether anything
 // is left. Empty or whitespace-only output is dropped so a quiet command
 // (the common case for a status poll) does not add attributes.
@@ -75,14 +77,21 @@ func (c *execChassis) run(ctx context.Context, op string, command string) (int, 
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", command)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	// Not unbounded: a machine detached with setsid still holds the inherited
+	// stdout and stderr, and Wait would block until the machine stops.
+	cmd.WaitDelay = outputDrainDelay
 	err := cmd.Run()
 	code := 0
 	if err != nil {
 		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
+		switch {
+		case errors.As(err, &exitErr):
 			code = exitErr.ExitCode()
 			err = nil
-		} else {
+		case errors.Is(err, exec.ErrWaitDelay):
+			code = cmd.ProcessState.ExitCode()
+			err = nil
+		default:
 			code = -1
 		}
 	}
