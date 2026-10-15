@@ -234,40 +234,14 @@ func (s *redfishServer) handleSystemPatch(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Not a replacement: properties absent from the request keep their value,
-	// and a target set while the override is disabled is stored without
-	// enabling it, as the Redfish specification requires.
 	current, err := s.boot.Get()
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	flags := *current
-	if patch.Boot.BootSourceOverrideTarget != nil {
-		t, ok := redfishToTarget[*patch.Boot.BootSourceOverrideTarget]
-		if !ok {
-			s.writeError(w, http.StatusBadRequest, fmt.Sprintf("unsupported BootSourceOverrideTarget %q", *patch.Boot.BootSourceOverrideTarget))
-			return
-		}
-		flags.BootDeviceSelector, _ = targetToSelector(t)
-	}
-	if patch.Boot.BootSourceOverrideEnabled != nil {
-		switch *patch.Boot.BootSourceOverrideEnabled {
-		case "Disabled":
-			flags.BootFlagsValid = false
-		case "Once":
-			flags.BootFlagsValid = true
-			flags.Persist = false
-		case "Continuous":
-			flags.BootFlagsValid = true
-			flags.Persist = true
-		default:
-			s.writeError(w, http.StatusBadRequest, fmt.Sprintf("unsupported BootSourceOverrideEnabled %q", *patch.Boot.BootSourceOverrideEnabled))
-			return
-		}
-	}
-	if flags.BootFlagsValid && flags.BootDeviceSelector == types.BootDeviceSelectorNoOverride {
-		s.writeError(w, http.StatusBadRequest, "BootSourceOverrideTarget is required to enable an override")
+	flags, err := patch.Boot.apply(*current)
+	if err != nil {
+		s.writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -278,6 +252,37 @@ func (s *redfishServer) handleSystemPatch(w http.ResponseWriter, r *http.Request
 	}
 	slog.Info("boot_flags", "source", "redfish", "target", f.Target, "persistent", f.Persistent)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// Not a replacement: properties absent from the patch keep their value, and
+// a target set while the override is disabled is stored without enabling
+// it, as the Redfish specification requires.
+func (p bootPatch) apply(flags types.BootOptionParam_BootFlags) (types.BootOptionParam_BootFlags, error) {
+	if p.BootSourceOverrideTarget != nil {
+		t, ok := redfishToTarget[*p.BootSourceOverrideTarget]
+		if !ok {
+			return flags, fmt.Errorf("unsupported BootSourceOverrideTarget %q", *p.BootSourceOverrideTarget)
+		}
+		flags.BootDeviceSelector, _ = targetToSelector(t)
+	}
+	if p.BootSourceOverrideEnabled != nil {
+		switch *p.BootSourceOverrideEnabled {
+		case "Disabled":
+			flags.BootFlagsValid = false
+		case "Once":
+			flags.BootFlagsValid = true
+			flags.Persist = false
+		case "Continuous":
+			flags.BootFlagsValid = true
+			flags.Persist = true
+		default:
+			return flags, fmt.Errorf("unsupported BootSourceOverrideEnabled %q", *p.BootSourceOverrideEnabled)
+		}
+	}
+	if flags.BootFlagsValid && flags.BootDeviceSelector == types.BootDeviceSelectorNoOverride {
+		return flags, errors.New("BootSourceOverrideTarget is required to enable an override")
+	}
+	return flags, nil
 }
 
 func (s *redfishServer) handleSystemReset(w http.ResponseWriter, r *http.Request) {

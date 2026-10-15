@@ -48,10 +48,12 @@ type computerSystem struct {
 }
 
 type systemPatch struct {
-	Boot *struct {
-		BootSourceOverrideTarget  *string `json:"BootSourceOverrideTarget"`
-		BootSourceOverrideEnabled *string `json:"BootSourceOverrideEnabled"`
-	} `json:"Boot"`
+	Boot *bootPatch `json:"Boot"`
+}
+
+type bootPatch struct {
+	BootSourceOverrideTarget  *string `json:"BootSourceOverrideTarget"`
+	BootSourceOverrideEnabled *string `json:"BootSourceOverrideEnabled"`
 }
 
 type resetRequest struct {
