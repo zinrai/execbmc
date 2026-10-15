@@ -52,11 +52,17 @@ func run() error {
 
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
 
-	boot := newBootdevStore(cfg.BootdevPath)
-	h := newExecHAL(cfg, boot)
-
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
+	return serve(ctx, cfg)
+}
+
+func serve(ctx context.Context, cfg *Config) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	boot := newBootdevStore(cfg.BootdevPath)
+	h := newExecHAL(cfg, boot)
 
 	errCh := make(chan error, 2)
 	servers := 0
@@ -76,7 +82,6 @@ func run() error {
 
 	for i := 0; i < servers; i++ {
 		if err := <-errCh; err != nil {
-			cancel()
 			return err
 		}
 	}
