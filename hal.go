@@ -54,6 +54,7 @@ func (h *execHAL) Storage() hal.StorageHAL { return nil }
 func (h *execHAL) Network() hal.NetworkHAL { return nil }
 func (h *execHAL) GPIO() hal.GPIOHAL       { return nil }
 func (h *execHAL) I2C() hal.I2CHAL         { return nil }
+func (h *execHAL) Console() hal.ConsoleHAL { return nil }
 func (h *execHAL) Close() error            { return nil }
 
 // execChassis implements hal.ChassisHAL by running configured commands.
