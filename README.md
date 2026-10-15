@@ -7,44 +7,12 @@ A virtual BMC that translates IPMI and Redfish operations into configured comman
 execbmc serves IPMI over LAN (RMCP+ and v1.5) and a Redfish subset for one
 machine, and executes configured commands for power operations. Boot device
 selection is written to a file for an external boot flow to consume. It is
-the BMC for a machine that does not have one: a QEMU guest, a container, a
-lab box. It is equally a stand-in for developing and testing IPMI and
-Redfish clients, with no hardware in the loop.
+the BMC for a machine that does not have one, and equally a stand-in for
+developing and testing IPMI and Redfish clients, with no hardware in the
+loop.
 
 One process is one BMC. It runs in the foreground and never becomes the
 parent of the machine it manages.
-
-## Motivation
-
-Existing virtual BMCs hard-wire their backend:
-[virtualbmc](https://github.com/openstack/virtualbmc) requires libvirt,
-[sushy-tools](https://github.com/openstack/sushy-tools) requires libvirt or
-OpenStack, [kubevirtbmc](https://github.com/starbops/kubevirtbmc) requires
-Kubernetes. Choosing the tool means choosing the virtualization stack. But the BMC
-protocol frontend and the machine management backend are separate concerns,
-and the narrowest interface between them is a command line.
-
-Three projects reached for that interface independently:
-[shipmi](https://github.com/lion7/shipmi) replaces virtualbmc's libvirt
-driver with shell script providers,
-[ipmi_sim](https://github.com/cminyard/openipmi) runs a configured
-chassis_control program, and
-[fakefish](https://github.com/openshift-metal3/fakefish) maps Redfish
-operations to custom scripts. Each covers part of the picture: shipmi is a Python stack
-serving IPMI only, fakefish serves Redfish only, and ipmi_sim owns the
-machine process it controls. They also differ on how a command reports
-power state: shipmi parses a status string from stdout, ipmi_sim reads a
-parameter and value from stdout, and fakefish keeps no status command of
-its own because it fronts a real BMC.
-
-execbmc is the remaining intersection: a single static binary serving both
-IPMI (RMCP+ and v1.5) and Redfish, with commands as the only backend
-interface, running in the foreground without a management daemon. Where
-those three differ, execbmc reads power state from the command exit code,
-so a status check is an ordinary test command. The backend is whatever the
-commands say: qemu-system started by a wrapper script, virsh start, docker
-start, ssh to another host, or a command that models a slow or failing
-machine for testing a client with no hardware in the loop.
 
 ## Usage
 
@@ -59,9 +27,9 @@ Write a JSON config file for the machine:
   "redfish": { "listen": "0.0.0.0:8443" },
   "bootdev_path": "/var/lib/execbmc/node1.bootdev",
   "commands": {
-    "power_status": "pgrep -f 'qemu-guest-node1'",
+    "power_status": "/usr/local/bin/status-node1.sh",
     "power_on": "/usr/local/bin/start-node1.sh",
-    "power_off": "pkill -f 'qemu-guest-node1'"
+    "power_off": "/usr/local/bin/stop-node1.sh"
   }
 }
 ```
@@ -192,6 +160,42 @@ The service root is unauthenticated, and everything else requires HTTP Basic
 authentication. TLS is enabled by default with a certificate generated at
 startup. Set `redfish.cert_file` and `redfish.key_file` to use your own, or
 `"tls": false` to serve plain HTTP.
+
+## Requires
+
+- Linux
+- `/bin/sh`, which runs every configured command
+
+## Motivation
+
+Existing virtual BMCs hard-wire their backend:
+[virtualbmc](https://github.com/openstack/virtualbmc) requires libvirt,
+[sushy-tools](https://github.com/openstack/sushy-tools) requires libvirt or
+OpenStack, [kubevirtbmc](https://github.com/starbops/kubevirtbmc) requires
+Kubernetes. Choosing the tool means choosing the virtualization stack. But the BMC
+protocol frontend and the machine management backend are separate concerns,
+and the narrowest interface between them is a command line.
+
+Three projects reached for that interface independently:
+[shipmi](https://github.com/lion7/shipmi) replaces virtualbmc's libvirt
+driver with shell script providers,
+[ipmi_sim](https://github.com/cminyard/openipmi) runs a configured
+chassis_control program, and
+[fakefish](https://github.com/openshift-metal3/fakefish) maps Redfish
+operations to custom scripts. Each covers part of the picture: shipmi is a Python stack
+serving IPMI only, fakefish serves Redfish only, and ipmi_sim owns the
+machine process it controls. They also differ on how a command reports
+power state: shipmi parses a status string from stdout, ipmi_sim reads a
+parameter and value from stdout, and fakefish keeps no status command of
+its own because it fronts a real BMC.
+
+execbmc is the remaining intersection: a single static binary serving both
+IPMI (RMCP+ and v1.5) and Redfish, with commands as the only backend
+interface, running in the foreground without a management daemon. Where
+those three differ, execbmc reads power state from the command exit code,
+so a status check is an ordinary test command. The backend is whatever the
+commands say, including a command that models a slow or failing machine
+for testing a client with no hardware in the loop.
 
 ## Non-goals
 
