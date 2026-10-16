@@ -69,8 +69,6 @@ func killPIDFile(t *testing.T, path string) {
 	}
 }
 
-// recordingChassis builds an execChassis whose power_off and power_on append
-// their name to a record file, and whose power_status reports off.
 func recordingChassis(t *testing.T) (*execChassis, func() []string) {
 	t.Helper()
 	cfg, _ := testConfig(t)
@@ -78,6 +76,7 @@ func recordingChassis(t *testing.T) (*execChassis, func() []string) {
 	rec := filepath.Join(t.TempDir(), "ops")
 	c := &execChassis{
 		commands: Commands{
+			// Not "true": waitPowerOff would poll until the command timeout.
 			PowerStatus: "false",
 			PowerOn:     "printf 'on\\n' >> " + rec,
 			PowerOff:    "printf 'off\\n' >> " + rec,
