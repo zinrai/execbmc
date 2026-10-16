@@ -189,6 +189,8 @@ func (c *execChassis) WarmReset(ctx context.Context) error {
 	return c.runOK(ctx, "power_soft", c.commands.PowerSoft)
 }
 
+// Not ErrNotSupported: go-ipmi reports Chassis Identify as supported in
+// Get Chassis Status, so a client that then calls it would get an error.
 func (c *execChassis) Identify(ctx context.Context, seconds uint8) error {
 	slog.Info("identify", "seconds", seconds)
 	return nil
