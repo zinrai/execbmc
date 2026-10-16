@@ -14,19 +14,19 @@ func TestExecChassisPowerStatusContract(t *testing.T) {
 	cfg, _ := testConfig(t)
 	boot := newBootdevStore(cfg.BootdevPath)
 
-	on := &execChassis{commands: Commands{PowerStatus: "true"}, timeout: cfg.CommandTimeout(), boot: boot}
+	on := &execChassis{commands: commandLines{PowerStatus: "true"}, timeout: cfg.commandTimeout(), boot: boot}
 	state, err := on.PowerState(context.Background())
 	if err != nil || !state {
 		t.Fatalf("exit 0: state=%t err=%v, want on", state, err)
 	}
 
-	off := &execChassis{commands: Commands{PowerStatus: "false"}, timeout: cfg.CommandTimeout(), boot: boot}
+	off := &execChassis{commands: commandLines{PowerStatus: "false"}, timeout: cfg.commandTimeout(), boot: boot}
 	state, err = off.PowerState(context.Background())
 	if err != nil || state {
 		t.Fatalf("exit 1: state=%t err=%v, want off", state, err)
 	}
 
-	bad := &execChassis{commands: Commands{PowerStatus: "exit 2"}, timeout: cfg.CommandTimeout(), boot: boot}
+	bad := &execChassis{commands: commandLines{PowerStatus: "exit 2"}, timeout: cfg.commandTimeout(), boot: boot}
 	if _, err = bad.PowerState(context.Background()); err == nil {
 		t.Fatal("exit 2 accepted as a power state")
 	}
@@ -39,8 +39,8 @@ func TestExecChassisReturnsWhenShellExits(t *testing.T) {
 	pidFile := filepath.Join(t.TempDir(), "pid")
 	t.Cleanup(func() { killPIDFile(t, pidFile) })
 	c := &execChassis{
-		commands: Commands{PowerOn: "sleep 10 & echo $! > " + pidFile},
-		timeout:  cfg.CommandTimeout(),
+		commands: commandLines{PowerOn: "sleep 10 & echo $! > " + pidFile},
+		timeout:  cfg.commandTimeout(),
 		boot:     newBootdevStore(cfg.BootdevPath),
 	}
 	start := time.Now()
@@ -75,13 +75,13 @@ func recordingChassis(t *testing.T) (*execChassis, func() []string) {
 	boot := newBootdevStore(cfg.BootdevPath)
 	rec := filepath.Join(t.TempDir(), "ops")
 	c := &execChassis{
-		commands: Commands{
+		commands: commandLines{
 			// Not "true": waitPowerOff would poll until the command timeout.
 			PowerStatus: "false",
 			PowerOn:     "printf 'on\\n' >> " + rec,
 			PowerOff:    "printf 'off\\n' >> " + rec,
 		},
-		timeout: cfg.CommandTimeout(),
+		timeout: cfg.commandTimeout(),
 		boot:    boot,
 	}
 	ops := func() []string {

@@ -35,11 +35,11 @@ type execHAL struct {
 	chassis *execChassis
 }
 
-func newExecHAL(cfg *Config, boot *bootdevStore) *execHAL {
+func newExecHAL(cfg *config, boot *bootdevStore) *execHAL {
 	return &execHAL{
 		chassis: &execChassis{
 			commands: cfg.Commands,
-			timeout:  cfg.CommandTimeout(),
+			timeout:  cfg.commandTimeout(),
 			boot:     boot,
 		},
 	}
@@ -55,7 +55,7 @@ func (h *execHAL) Console() hal.ConsoleHAL { return nil }
 func (h *execHAL) Close() error            { return nil }
 
 type execChassis struct {
-	commands Commands
+	commands commandLines
 	timeout  time.Duration
 	boot     *bootdevStore
 }

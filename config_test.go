@@ -5,17 +5,17 @@ import (
 	"testing"
 )
 
-func testConfig(t *testing.T) (*Config, string) {
+func testConfig(t *testing.T) (*config, string) {
 	t.Helper()
 	dir := t.TempDir()
 	bootdevPath := filepath.Join(dir, "bootdev")
-	return &Config{
+	return &config{
 		Name:        "node1",
 		Username:    "admin",
 		Password:    "secret",
-		IPMI:        IPMIConfig{Listen: ":0"},
+		IPMI:        ipmiConfig{Listen: ":0"},
 		BootdevPath: bootdevPath,
-		Commands: Commands{
+		Commands: commandLines{
 			PowerStatus: "true",
 			PowerOn:     "true",
 			PowerOff:    "true",

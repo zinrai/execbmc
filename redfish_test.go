@@ -172,8 +172,8 @@ func TestRedfishResetSurvivesClientDisconnect(t *testing.T) {
 	cfg, _ := testConfig(t)
 	done := filepath.Join(t.TempDir(), "done")
 	chassis := &execChassis{
-		commands: Commands{PowerOn: "sleep 1; touch " + done},
-		timeout:  cfg.CommandTimeout(),
+		commands: commandLines{PowerOn: "sleep 1; touch " + done},
+		timeout:  cfg.commandTimeout(),
 		boot:     newBootdevStore(cfg.BootdevPath),
 	}
 	rf := &redfishServer{cfg: cfg, chassis: chassis, boot: chassis.boot}

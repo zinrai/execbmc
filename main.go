@@ -45,7 +45,7 @@ func run() error {
 		return fmt.Errorf("-config is required")
 	}
 
-	cfg, err := LoadConfig(configPath)
+	cfg, err := loadConfig(configPath)
 	if err != nil {
 		return err
 	}
@@ -57,7 +57,7 @@ func run() error {
 	return serve(ctx, cfg)
 }
 
-func serve(ctx context.Context, cfg *Config) error {
+func serve(ctx context.Context, cfg *config) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

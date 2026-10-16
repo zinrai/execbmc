@@ -36,12 +36,12 @@ var allowableTargets = []string{"None", "Pxe", "Hdd", "Cd"}
 var allowableResets = []string{"On", "ForceOff", "GracefulShutdown", "ForceRestart", "PowerCycle"}
 
 type redfishServer struct {
-	cfg     *Config
+	cfg     *config
 	chassis hal.ChassisHAL
 	boot    *bootdevStore
 }
 
-func serveRedfish(ctx context.Context, cfg *Config, chassis hal.ChassisHAL, boot *bootdevStore) error {
+func serveRedfish(ctx context.Context, cfg *config, chassis hal.ChassisHAL, boot *bootdevStore) error {
 	rf := &redfishServer{cfg: cfg, chassis: chassis, boot: boot}
 
 	srv := &http.Server{
@@ -49,7 +49,7 @@ func serveRedfish(ctx context.Context, cfg *Config, chassis hal.ChassisHAL, boot
 		Handler: rf.handler(),
 	}
 
-	if cfg.Redfish.TLSEnabled() && cfg.Redfish.CertFile == "" {
+	if cfg.Redfish.tlsEnabled() && cfg.Redfish.CertFile == "" {
 		cert, err := selfSignedCertificate(cfg.Name)
 		if err != nil {
 			return fmt.Errorf("generate certificate: %w", err)
@@ -63,7 +63,7 @@ func serveRedfish(ctx context.Context, cfg *Config, chassis hal.ChassisHAL, boot
 	}()
 
 	var err error
-	if cfg.Redfish.TLSEnabled() {
+	if cfg.Redfish.tlsEnabled() {
 		slog.Info("listening", "component", "redfish", "addr", cfg.Redfish.Listen, "tls", true)
 		err = srv.ListenAndServeTLS(cfg.Redfish.CertFile, cfg.Redfish.KeyFile)
 	} else {

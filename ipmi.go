@@ -29,7 +29,7 @@ func systemGUID(name string) [16]byte {
 	return guid
 }
 
-func serveIPMI(ctx context.Context, cfg *Config, h hal.HAL) error {
+func serveIPMI(ctx context.Context, cfg *config, h hal.HAL) error {
 	info := bmc.DeviceInfo{
 		DeviceID:       1,
 		DeviceRevision: 1,

@@ -7,39 +7,39 @@ import (
 	"time"
 )
 
-type Config struct {
+type config struct {
 	Name     string `json:"name"`
 	Username string `json:"username"`
 	Password string `json:"password"`
 
-	IPMI    IPMIConfig    `json:"ipmi"`
-	Redfish RedfishConfig `json:"redfish"`
+	IPMI    ipmiConfig    `json:"ipmi"`
+	Redfish redfishConfig `json:"redfish"`
 
 	BootdevPath string `json:"bootdev_path"`
 
-	CommandTimeoutSeconds int      `json:"command_timeout_seconds"`
-	Commands              Commands `json:"commands"`
+	CommandTimeoutSeconds int          `json:"command_timeout_seconds"`
+	Commands              commandLines `json:"commands"`
 }
 
-type IPMIConfig struct {
+type ipmiConfig struct {
 	Listen string `json:"listen"`
 }
 
-type RedfishConfig struct {
+type redfishConfig struct {
 	Listen   string `json:"listen"`
 	TLS      *bool  `json:"tls"`
 	CertFile string `json:"cert_file"`
 	KeyFile  string `json:"key_file"`
 }
 
-func (r RedfishConfig) TLSEnabled() bool {
+func (r redfishConfig) tlsEnabled() bool {
 	if r.TLS == nil {
 		return true
 	}
 	return *r.TLS
 }
 
-type Commands struct {
+type commandLines struct {
 	PowerStatus string `json:"power_status"`
 	PowerOn     string `json:"power_on"`
 	PowerOff    string `json:"power_off"`
@@ -48,22 +48,22 @@ type Commands struct {
 	Reset       string `json:"reset"`
 }
 
-func LoadConfig(path string) (*Config, error) {
+func loadConfig(path string) (*config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	var cfg Config
+	var cfg config
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	return &cfg, nil
 }
 
-func (c *Config) Validate() error {
+func (c *config) validate() error {
 	if c.Name == "" {
 		return fmt.Errorf("name is required")
 	}
@@ -96,7 +96,7 @@ func (c *Config) Validate() error {
 
 const defaultCommandTimeout = 30 * time.Second
 
-func (c *Config) CommandTimeout() time.Duration {
+func (c *config) commandTimeout() time.Duration {
 	if c.CommandTimeoutSeconds == 0 {
 		return defaultCommandTimeout
 	}
