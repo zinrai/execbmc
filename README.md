@@ -139,6 +139,10 @@ the machine reads it, translates the target into boot arguments, and, when
 false}` after one boot. execbmc reads the file back when reporting the boot
 device, so the reset disables the override, and a missing file means none.
 
+execbmc replaces the file on every change by renaming a temporary file
+created in the same directory, so it needs write access to that directory,
+and the file always has mode 0600.
+
 ### Logging
 
 Logs are JSON lines on stderr, one line per command execution, Redfish
