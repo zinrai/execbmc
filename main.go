@@ -24,7 +24,7 @@ func main() {
 
 func run() error {
 	configPath := flag.String("config", "", "path to the JSON config file (required)")
-	versionFlag := flag.Bool("version", false, "Print version information and exit")
+	versionFlag := flag.Bool("version", false, "print version information and exit")
 	flag.Parse()
 
 	if *versionFlag {
