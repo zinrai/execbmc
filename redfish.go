@@ -32,6 +32,8 @@ var targetToRedfish = map[string]string{
 
 var errUnsupportedResetType = errors.New("unsupported ResetType")
 
+var errInvalidBootPatch = errors.New("invalid Boot")
+
 var allowableTargets = []string{"None", "Pxe", "Hdd", "Cd"}
 var allowableResets = []string{"On", "ForceOff", "GracefulShutdown", "ForceRestart", "PowerCycle"}
 
@@ -236,19 +238,12 @@ func (s *redfishServer) handleSystemPatch(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	current, err := s.boot.Get()
-	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	flags, err := patch.Boot.apply(*current)
-	if err != nil {
+	f, err := s.boot.Update(patch.Boot.apply)
+	switch {
+	case errors.Is(err, errInvalidBootPatch):
 		s.writeError(w, http.StatusBadRequest, err.Error())
 		return
-	}
-
-	f, err := s.boot.Set(&flags)
-	if err != nil {
+	case err != nil:
 		s.writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -263,7 +258,7 @@ func (p bootPatch) apply(flags types.BootOptionParam_BootFlags) (types.BootOptio
 	if p.BootSourceOverrideTarget != nil {
 		t, ok := redfishToTarget[*p.BootSourceOverrideTarget]
 		if !ok {
-			return flags, fmt.Errorf("unsupported BootSourceOverrideTarget %q", *p.BootSourceOverrideTarget)
+			return flags, fmt.Errorf("%w: unsupported BootSourceOverrideTarget %q", errInvalidBootPatch, *p.BootSourceOverrideTarget)
 		}
 		flags.BootDeviceSelector, _ = targetToSelector(t)
 	}
@@ -278,11 +273,11 @@ func (p bootPatch) apply(flags types.BootOptionParam_BootFlags) (types.BootOptio
 			flags.BootFlagsValid = true
 			flags.Persist = true
 		default:
-			return flags, fmt.Errorf("unsupported BootSourceOverrideEnabled %q", *p.BootSourceOverrideEnabled)
+			return flags, fmt.Errorf("%w: unsupported BootSourceOverrideEnabled %q", errInvalidBootPatch, *p.BootSourceOverrideEnabled)
 		}
 	}
 	if flags.BootFlagsValid && flags.BootDeviceSelector == types.BootDeviceSelectorNoOverride {
-		return flags, errors.New("BootSourceOverrideTarget is required to enable an override")
+		return flags, fmt.Errorf("%w: BootSourceOverrideTarget is required to enable an override", errInvalidBootPatch)
 	}
 	return flags, nil
 }

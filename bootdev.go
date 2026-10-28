@@ -66,6 +66,32 @@ func targetToSelector(target string) (types.BootDeviceSelector, error) {
 }
 
 func (s *bootdevStore) Set(flags *types.BootOptionParam_BootFlags) (bootdevFile, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.set(flags)
+}
+
+func (s *bootdevStore) Get() (*types.BootOptionParam_BootFlags, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.get()
+}
+
+func (s *bootdevStore) Update(change func(types.BootOptionParam_BootFlags) (types.BootOptionParam_BootFlags, error)) (bootdevFile, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, err := s.get()
+	if err != nil {
+		return bootdevFile{}, err
+	}
+	flags, err := change(*current)
+	if err != nil {
+		return bootdevFile{}, err
+	}
+	return s.set(&flags)
+}
+
+func (s *bootdevStore) set(flags *types.BootOptionParam_BootFlags) (bootdevFile, error) {
 	target, err := selectorToTarget(flags.BootDeviceSelector)
 	if err != nil {
 		return bootdevFile{}, err
@@ -74,9 +100,6 @@ func (s *bootdevStore) Set(flags *types.BootOptionParam_BootFlags) (bootdevFile,
 		target = targetNone
 	}
 	f := bootdevFile{Target: target, Persistent: flags.Persist}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if err := s.write(f); err != nil {
 		return bootdevFile{}, err
 	}
@@ -84,9 +107,7 @@ func (s *bootdevStore) Set(flags *types.BootOptionParam_BootFlags) (bootdevFile,
 	return f, nil
 }
 
-func (s *bootdevStore) Get() (*types.BootOptionParam_BootFlags, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *bootdevStore) get() (*types.BootOptionParam_BootFlags, error) {
 	// Not from memory alone: the file's reader, not execbmc, resets a
 	// one-shot override after the boot.
 	f, err := s.read()
