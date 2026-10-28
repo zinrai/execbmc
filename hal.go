@@ -31,6 +31,22 @@ func logOutput(b []byte) (string, bool) {
 	return s, true
 }
 
+func logExec(op, command string, code int, elapsed time.Duration, stdout, stderr []byte) {
+	attrs := []any{
+		"op", op,
+		"cmd", command,
+		"exit_code", code,
+		"duration_ms", elapsed.Milliseconds(),
+	}
+	if out, ok := logOutput(stdout); ok {
+		attrs = append(attrs, "stdout", out)
+	}
+	if out, ok := logOutput(stderr); ok {
+		attrs = append(attrs, "stderr", out)
+	}
+	slog.Info("exec", attrs...)
+}
+
 type execHAL struct {
 	chassis *execChassis
 }
@@ -88,19 +104,7 @@ func (c *execChassis) run(ctx context.Context, op string, command string) (int, 
 		}
 	}
 
-	attrs := []any{
-		"op", op,
-		"cmd", command,
-		"exit_code", code,
-		"duration_ms", time.Since(start).Milliseconds(),
-	}
-	if out, ok := logOutput(stdout.Bytes()); ok {
-		attrs = append(attrs, "stdout", out)
-	}
-	if out, ok := logOutput(stderr.Bytes()); ok {
-		attrs = append(attrs, "stderr", out)
-	}
-	slog.Info("exec", attrs...)
+	logExec(op, command, code, time.Since(start), stdout.Bytes(), stderr.Bytes())
 
 	if err != nil {
 		return -1, fmt.Errorf("run %q: %w", command, err)
