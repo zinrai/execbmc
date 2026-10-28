@@ -1,8 +1,16 @@
 package main
 
-// version, commit and date are set by goreleaser via -ldflags -X.
+import "fmt"
+
+// Variables rather than constants: goreleaser overwrites them with -ldflags -X
 var (
 	version = "dev"
 	commit  = "none"
 	date    = "unknown"
 )
+
+func printVersion() {
+	fmt.Printf("execbmc version %s\n", version)
+	fmt.Printf("commit: %s\n", commit)
+	fmt.Printf("built: %s\n", date)
+}

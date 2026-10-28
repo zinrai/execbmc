@@ -28,7 +28,7 @@ func run() error {
 	flag.Parse()
 
 	if *versionFlag {
-		fmt.Printf("execbmc version %s (commit: %s, built: %s)\n", version, commit, date)
+		printVersion()
 		return nil
 	}
 
